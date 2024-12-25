@@ -101,7 +101,10 @@ async function downloadFile(
         headers: _headers,
       });
     } else {
-      res = await fetch(encodeUrlHeaders(mediaSource.url, _headers));
+      if(mediaSource.headers)
+        res = await fetch(encodeUrlHeaders(mediaSource.url, _headers));
+      else
+        res = await fetch(mediaSource.url);
     }
 
     const totalSize = +res.headers.get("content-length");
