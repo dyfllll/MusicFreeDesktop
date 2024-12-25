@@ -87,6 +87,10 @@ app.on("open-url", (_evt, url) => {
     handleDeepLink(url);
 });
 
+app.on('before-quit', () => {
+    ServiceManager.stopAllService();
+});
+
 app.on("will-quit", () => {
     globalShortcut.unregisterAll();
 });
