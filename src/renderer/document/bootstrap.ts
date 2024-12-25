@@ -17,7 +17,7 @@ import throttle from "lodash.throttle";
 import {IAppState} from "@shared/message-bus/type";
 import MusicDetail from "@renderer/components/MusicDetail";
 import shortCut from "@shared/short-cut/renderer";
-
+import ossUtil from "../core/ossUtil";
 
 setAutoFreeze(false);
 
@@ -37,6 +37,7 @@ export default async function () {
     setupCommandAndEvents();
     setupDeviceChange();
     localMusic.setupLocalMusic();
+    await ossUtil.setup();
     await Downloader.setupDownloader();
     setupRecentlyPlaylist();
     // 本地服务

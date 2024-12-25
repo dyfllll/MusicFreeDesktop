@@ -29,6 +29,8 @@ import {createUniqueMap} from "@/common/unique-map";
 import {getLinkedLyric} from "@renderer/core/link-lyric";
 import {fsUtil} from "@shared/utils/renderer";
 import PluginManager from "@shared/plugin-manager/renderer";
+import Downloader from "@/renderer/core/downloader";
+import ossUtil from "@/renderer/core/ossUtil";
 
 const {
     musicQueueStore,
@@ -328,9 +330,60 @@ class TrackPlayer {
         try {
             const {mediaSource, quality} = await this.fetchMediaSource(nextMusicItem, intendedQuality);
 
+            //是oss插件地址跳过
+            const isOssPlatform = ossUtil.checkOssPlatform(nextMusicItem);
+
+            //检测oss文件是否存在
+
+            const { ossExist, ossKeyPath } = await ossUtil.checkS3Exist(nextMusicItem);
+
+            let useOss = false;
+            const ossRank =  AppConfig.getConfig("backup.oss.rank");
+
+            if(mediaSource.url){
+                if(mediaSource.url.startsWith("file:"))
+                    useOss = false;
+                else
+                    useOss = ossRank;                
+            }else{
+                if(ossExist)
+                    useOss = true;
+                else
+                    useOss = false;
+            }
+
+            //音乐源无效 oss存在使用oss地址
+            if (useOss) {
+                mediaSource.url = await ossUtil.getS3Url(ossKeyPath);
+                mediaSource.headers = null;
+                mediaSource.userAgent = null;
+                mediaSource.quality = null;
+            }
+
             if (!mediaSource.url) {
                 throw new Error("mediaSource.url is empty");
             }
+
+            const enableUpload = AppConfig.getConfig("backup.oss.enable");
+            const playDownload = AppConfig.getConfig("backup.oss.playDownload");
+
+            let needDownload = false;
+            let needUpload = false;
+            
+
+            if(playDownload)
+                needDownload = true;
+
+            //oss不存在而且有url,下载并上传
+            if (enableUpload && !isOssPlatform && !ossExist && mediaSource.url)
+            {
+                needDownload = true;
+                needUpload = true;
+            }
+
+            if(needDownload)
+                await Downloader.startOssUpload(nextMusicItem, mediaSource,quality,needUpload);
+            
 
             if (!this.isCurrentMusic(nextMusicItem)) {
                 // should be aborted
@@ -691,6 +744,13 @@ class TrackPlayer {
             }
         }
 
+        const ossRank =  AppConfig.getConfig("backup.oss.rank");
+        if(ossRank){
+            return {
+                quality: realQuality,
+                mediaSource: {}
+            }
+        }
         // 2. 如果没有下载
         for (const quality of qualityOrder) {
             try {

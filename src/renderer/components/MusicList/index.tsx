@@ -22,7 +22,7 @@ import BottomLoadingState from "../BottomLoadingState";
 import {IContextMenuItem, showContextMenu} from "../ContextMenu";
 import {getInternalData, getMediaPrimaryKey, isSameMedia,} from "@/common/media-util";
 import {CSSProperties, memo, useCallback, useEffect, useRef, useState,} from "react";
-import {showModal} from "../Modal";
+import { showModal, hideModal } from "../Modal";
 import useVirtualList from "@/hooks/useVirtualList";
 import hotkeys from "hotkeys-js";
 import Downloader from "@/renderer/core/downloader";
@@ -35,6 +35,9 @@ import {i18n} from "@/shared/i18n/renderer";
 import isLocalMusic from "@/renderer/utils/is-local-music";
 import AppConfig from "@shared/app-config/renderer";
 import {shellUtil} from "@shared/utils/renderer";
+import ossUtil from "@/renderer/core/ossUtil";
+import { dialogUtil, fsUtil } from "@shared/utils/renderer";
+import { getGlobalContext } from "@/shared/global-context/renderer";
 
 interface IMusicListProps {
     /** 展示的播放列表 */
@@ -211,6 +214,37 @@ export function showMusicContextMenu(
         }
     );
 
+    menuItems.push({
+        title: "删除云端备份",
+        icon: "trash",
+        show: !isArray && !!sheetType && sheetType !== "play-list",
+        async onClick() {
+            showModal("Reconfirm", {
+                title: "删除云端备份",
+                content: "是否删除云端备份",
+                async onConfirm() {
+                    hideModal();
+                    if (!isArray) {
+                        let realTimeMusicItem = musicItems;
+                        if (musicItems.platform !== localPluginName) {
+                            realTimeMusicItem = await musicSheetDB.musicStore.get([
+                                musicItems.platform,
+                                musicItems.id,
+                            ]);
+                        }
+                        const { result, msg } = await ossUtil.deleteS3File(realTimeMusicItem);
+
+                        if (result) {
+                            toast.success(msg);
+                        } else {
+                            toast.error(msg);
+                        }
+                    }
+                }
+            });
+        },
+    });
+
     menuItems.push(
         {
             title: i18n.t("common.download"),
@@ -300,6 +334,65 @@ export function showMusicContextMenu(
             },
         }
     );
+
+    menuItems.push({
+        title: "关联本地文件",
+        icon: "folder-open",
+        show: !isArray && !!sheetType && sheetType !== "play-list" && !Downloader.isDownloaded(musicItems),
+        async onClick() {
+            try {
+                if (!isArray) {
+                    let realTimeMusicItem = musicItems;
+                    if (musicItems.platform !== localPluginName) {
+                        realTimeMusicItem = await musicSheetDB.musicStore.get([
+                            musicItems.platform,
+                            musicItems.id,
+                        ]);
+                    }
+
+                    const fileName = `${realTimeMusicItem.title}-${realTimeMusicItem.artist}`.replace(/[/|\\?*"<>:]/g, "_");
+                    let ext = "mp3";
+                    const downloadBasePath =
+                        AppConfig.getConfig("download.path") ?? getGlobalContext().appPath.downloads;
+                    const downloadPath = window.path.resolve(
+                        downloadBasePath,
+                        `./${fileName}.${ext}`
+                    );
+
+                    const mediaQuality = AppConfig.getConfig("download.defaultQuality");
+ 
+                    const result = await dialogUtil.showOpenDialog({
+                        properties: ["openFile"],
+                        defaultPath: downloadPath,
+                        filters: [
+                            {
+                                name: "音频",
+                                extensions: ["mp3", "wav", "flac", "ogg", "wma", "aac"],
+                            },
+                            {
+                                name: "所有文件",
+                                extensions: ["*"],
+                            },
+                        ],
+                        title: "选择关联音频文件",
+                    });
+                    if (!result.canceled && result.filePaths) {
+                        console.log(result.filePaths[0]);
+                        const filePath = result.filePaths[0];
+                        if (await Downloader.linkLocalFile(realTimeMusicItem, mediaQuality, filePath)) {
+                            toast.success("文件关联成功");
+                        }
+                        else {
+                            toast.error("文件不存在:" + filePath);
+                        }
+                    }
+                }
+            } catch (e) {
+                toast.error("文件关联失败" + e);
+            }
+
+        },
+    });
 
     showContextMenu({
         x,

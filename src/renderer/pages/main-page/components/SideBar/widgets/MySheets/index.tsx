@@ -9,6 +9,11 @@ import { localPluginName } from "@/common/constant";
 import { showContextMenu } from "@/renderer/components/ContextMenu";
 import { useTranslation } from "react-i18next";
 import {useSupportedPlugin} from "@shared/plugin-manager/renderer";
+import AppConfig from "@shared/app-config/renderer";
+import { toast } from "react-toastify";
+import ossUtil from "@/renderer/core/ossUtil";
+import BackupResume from "@/renderer/core/backup-resume";
+import { dialogUtil, fsUtil } from "@shared/utils/renderer";
 
 
 export default function MySheets() {
@@ -22,12 +27,152 @@ export default function MySheets() {
 
   const importablePlugins = useSupportedPlugin("importMusicSheet");
 
+  async function onCkeckClick() {
+    let map = await ossUtil.getS3BackupList();
+
+    const parts: string[] = [];
+    const datas: IMusic.IMusicItem[] = [];
+
+    const sheetDetails =
+      await MusicSheet.frontend.exportAllSheetDetails();
+
+    sheetDetails.forEach(sheet => {
+      sheet.musicList?.forEach(it => {
+        let item = it as IMusic.IMusicItem;
+        if (item) {
+          let name = ossUtil.getOssPathName(item);
+          if (!map.has(name)) {
+            parts.push(name);
+            datas.push(item);
+          }
+        }
+      });
+    });
+
+    if (parts.length > 0) {
+
+      const exportFile = true;
+
+      if (exportFile) {
+        const result = await dialogUtil.showSaveDialog({
+          properties: ["showOverwriteConfirmation", "createDirectory"],
+          filters: [
+            {
+              name: "文本文件",
+              extensions: ["txt"],
+            },
+          ],
+          title: "导出结果",
+        });
+        if (!result.canceled && result.filePath) {
+          await fsUtil.writeFile(result.filePath, parts.join('\r\n'), "utf-8");
+          toast.success(t("导出成功"));
+        }
+      } else {
+          //批量上传
+      }
+
+    } else {
+      toast.success(t("已经全部备份"));
+    }
+  }
+
+  async function onBackupClick() {
+    try {
+      const sheetDetails =
+        await MusicSheet.frontend.exportAllSheetDetails();
+      const backUp = JSON.stringify(
+        {
+          musicSheets: sheetDetails,
+        },
+        undefined,
+        0
+      );
+      await ossUtil.uploadCosBackupFile(backUp);
+      toast.success(t("settings.backup.backup_success"));
+
+    } catch (e) {
+      toast.error(
+        t("settings.backup.backup_fail", {
+          reason: e?.message,
+        })
+      );
+    }
+  }
+
+  async function onResumeClick() {
+    try {
+      const resumeData = await ossUtil.dowloadCosBackupFile();    
+      await BackupResume.resumeOSS(
+        resumeData,
+        AppConfig.getConfig("backup.resumeBehavior") === "overwrite"
+      );
+      toast.success(t("settings.backup.resume_success"));
+
+    } catch (e) {
+      toast.error(
+        t("settings.backup.resume_fail", {
+          reason: e?.message,
+        })
+      );
+    }
+
+  }
+
+
   return (
     <div className="side-bar-container--my-sheets">
       <div className="divider"></div>
       <Disclosure defaultOpen>
         <Disclosure.Button className="title" as="div" role="button">
           <div className="my-sheets">{t("side_bar.my_sheets")}</div>
+          <div
+            role="button"
+            className="option-btn"
+            title="导出未备份"
+            onClick={(e) => {
+              e.stopPropagation();
+              onCkeckClick();
+            }}
+          >
+            <SvgAsset iconName="oss-check"  size={16} ></SvgAsset>
+          </div>
+          <div
+            role="button"
+            className="option-btn"
+            title="备份"
+            onClick={(e) => {
+              e.stopPropagation();
+              showModal("Reconfirm", {
+                title: "备份歌单",
+                content: "是否备份歌单",
+                async onConfirm() {
+                  hideModal();
+                  await onBackupClick();
+                },
+              });
+            }}
+          >
+            <SvgAsset iconName="oss-upload"></SvgAsset>
+          </div>
+          <div
+            role="button"
+            className="option-btn"
+            title="恢复"
+            onClick={(e) => {
+              e.stopPropagation();
+              showModal("Reconfirm", {
+                title: "恢复歌单",
+                content: "是否恢复歌单",
+                async onConfirm() {
+                  hideModal();
+                  await onResumeClick();
+                },
+              });
+            }}
+          >
+            <SvgAsset iconName="oss-download"></SvgAsset>
+          </div>
           <div
             role="button"
             className="option-btn"

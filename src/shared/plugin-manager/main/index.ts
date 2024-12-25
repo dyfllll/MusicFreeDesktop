@@ -14,6 +14,7 @@ import AppConfig from "@shared/app-config/main";
 import {compare} from "compare-versions";
 import {nanoid} from "nanoid";
 import logger from "@shared/logger/main";
+import ossPlugin from "./internal-plugins/oss-load-plugin"
 
 const axios = _axios.create({
     httpsAgent: new https.Agent({
@@ -238,7 +239,9 @@ class PluginManager {
                 logger.logError("插件加载失败", e);
             }
         }
-        this.plugins = plugins;
+        pluginHashSet.add(ossPlugin.hash);
+        plugins.push(ossPlugin);
+        this.plugins = plugins;   
         this.syncPlugins();
     }
 

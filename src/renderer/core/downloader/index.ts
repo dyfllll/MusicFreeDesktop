@@ -3,6 +3,7 @@ import {
   getQualityOrder,
   isSameMedia,
   setInternalData,
+  getInternalData
 } from "@/common/media-util";
 import * as Comlink from "comlink";
 import { DownloadState, localPluginName } from "@/common/constant";
@@ -21,6 +22,10 @@ import { useEffect, useState } from "react";
 import { DownloadEvts, ee } from "./ee";
 import AppConfig from "@shared/app-config/renderer";
 import PluginManager from "@shared/plugin-manager/renderer";
+import { fsUtil } from "@shared/utils/renderer";
+import ossUtil from "@/renderer/core/ossUtil";
+import { toast } from "react-toastify";
+import MusicSheet from "@/renderer/core/music-sheet";
 
 
 export interface IDownloadStatus {
@@ -77,6 +82,303 @@ function setDownloadingConcurrency(concurrency: number) {
     concurrencyLimit
   );
 }
+
+function uploadOssLocalFile(filePath: string, ossPathKey: string, onStateChange: IOnStateChangeFunc) {
+  fsUtil.readFile(filePath).then(buffer => {
+    if (buffer.length == 0) {
+      console.log("ERROR buffer.length==0");
+      onStateChange({
+        state: DownloadState.ERROR,
+        msg: "ERROR buffer.length==0",
+      });
+      return;
+    }
+
+    let state = DownloadState.DOWNLOADING;
+    ossUtil.uploadS3File(buffer, ossPathKey,
+      (loaded, total) => {
+        if (state !== DownloadState.DOWNLOADING) {
+          return;
+        }
+        state = DownloadState.DOWNLOADING;
+        const size = loaded;
+        const totalSize = total;
+        console.log(`oss upload ${state}`, size, totalSize);
+        onStateChange({
+          state,
+          downloaded: size,
+          total: totalSize,
+        });
+      }, (err) => {
+        console.log(err, "ERROR");
+        onStateChange({
+          state: DownloadState.ERROR,
+          msg: err,
+        });
+        // toast.error("上传oss失败");
+      }).then((result) => {
+        state = DownloadState.DONE;
+        onStateChange({
+          state,
+        });      
+        console.log("上传oss成功:" + result);
+        // toast.success("上传oss成功");
+      });
+  }).catch(e => {
+    console.log(e, "ERROR");
+    onStateChange({
+      state: DownloadState.ERROR,
+      msg: e?.message,
+    });
+    // toast.error("上传oss失败");
+  });
+}
+
+function ChangeStateData(data: IDownloadStatus, offset = 0, scale = 1): IDownloadStatus {
+  return {
+    state: data.state,
+    downloaded: data.downloaded ? data.downloaded * scale + offset : data.downloaded,
+    total: data.total,
+    msg: data.msg
+  };
+}
+
+
+async function autoLinkAllSheet() {
+  const sheets = await MusicSheet.frontend.exportAllSheetDetails();
+  const mediaQuality = AppConfig.getConfig("download.defaultQuality");
+  let number = 0;
+  let total = 0;
+  for (const sheet of sheets) {
+    for (const it of sheet.musicList) {
+      const item = it as IMusic.IMusicItem;
+      if (!item) continue;
+      const fileName = `${item.title}-${item.artist}`.replace(/[/|\\?*"<>:]/g, "_");
+      let ext = "mp3";
+      const downloadBasePath =
+        AppConfig.getConfig("download.path") ?? getGlobalContext().appPath.downloads;
+      const downloadPath = window.path.resolve(
+        downloadBasePath,
+        `./${fileName}.${ext}`
+      );
+      if (await Downloader.linkLocalFile(item, mediaQuality, downloadPath)) {
+        number++;
+      }
+      total++;
+    }
+  }
+  toast.success(`成功关联${number}/${number}`);
+}
+
+async function autoUnLinkAllSheet() {
+  const sheets = await MusicSheet.frontend.getAllSheets();
+  for (const sheet of sheets) {
+    await removeDownloadedMusic(sheet.musicList.map(it=> it as IMusic.IMusicItem), false);
+  }
+  toast.success(`成功清理关联`);
+}
+
+
+async function linkLocalFile(musicItem: IMusic.IMusicItem, mediaQuality: IMusic.IQualityKey, filePath: string) {
+  if (await fsUtil.isFile(filePath)) {
+    addDownloadedMusicToList(
+      setInternalData<IMusic.IMusicItemInternalData>(
+        musicItem as any,
+        "downloadData",
+        {
+          path: filePath,
+          quality: mediaQuality,
+        },
+        true
+      ) as IMusic.IMusicItem
+    );
+    return true;
+  }
+  else {
+    return false;
+  }
+}
+
+
+async function startOssUpload(musicItem: IMusic.IMusicItem,
+  mediaSource: IPlugin.IMediaSourceResult, mediaQuality: IMusic.IQualityKey, upload = true) {
+
+  if (!ossUtil.isVaild())
+    return;
+
+
+  if (!downloaderWorker) {
+    setupDownloaderWorker();
+  }
+
+  const ossPathKey = ossUtil.getS3PathKey(musicItem);
+
+  const downloadedData = getInternalData<IMusic.IMusicItemInternalData>(
+    musicItem,
+    "downloadData"
+  );
+
+  let isFile = false;
+  let localPath = "";
+
+  if (downloadedData) {
+    const { quality, path: _path } = downloadedData;
+    if (await fsUtil.isFile(_path)) {
+      isFile = true;
+      localPath = _path;
+    }
+  } else if (musicItem.platform == localPluginName && "$$localPath" in musicItem) { //本地文件类型
+    if (await fsUtil.isFile(musicItem.$$localPath)) {
+      isFile = true;
+      localPath = musicItem.$$localPath;
+    }
+  }
+
+  if (isFile) {
+    if (upload) {
+      const callback = () => {
+        const it = musicItem;
+        const pk = getMediaPrimaryKey(it);
+        downloadingProgress.set(pk, {
+          state: DownloadState.WAITING,
+        });
+
+        return async () => {
+          if (!downloadingProgress.has(pk)) {
+            return;
+          }
+          downloadingProgress.get(pk).state = DownloadState.DOWNLOADING;
+          await new Promise<void>((resolve) => {
+            uploadOssLocalFile(localPath, ossPathKey, (stateData) => {
+              downloadingProgress.set(pk, stateData);
+              ee.emit(DownloadEvts.DownloadStatusUpdated, it, stateData);
+              if (stateData.state === DownloadState.DONE) {
+                downloadingProgress.delete(pk);
+                toast.success("上传成功");
+                resolve();
+              } else if (stateData.state === DownloadState.ERROR) {
+                downloadingProgress.delete(pk);
+                toast.error("上传失败");
+                resolve();
+              }
+            });
+          });
+        };
+      };
+      downloadingQueue.add(callback());
+    }
+  }
+  else {
+    const _musicItems = [musicItem];
+    const callbacks = _musicItems.map((it) => {
+      const pk = getMediaPrimaryKey(it);
+      downloadingProgress.set(pk, {
+        state: DownloadState.WAITING,
+      });
+
+      return async () => {
+        // Not on waiting list
+        if (!downloadingProgress.has(pk)) {
+          return;
+        }
+
+        downloadingProgress.get(pk).state = DownloadState.DOWNLOADING;
+
+        await new Promise<void>((resolve) => {
+
+          const fileName = `${it.title}-${it.artist}`.replace(/[/|\\?*"<>:]/g, "_");
+          let ext = mediaSource.url.match(/.*\/.+\.([^./?#]+)/)?.[1] ?? "mp3";
+          ext = ext.split('&')[0];
+          ext = ext=="b3dm"?"mp3":ext;
+          const downloadBasePath =
+            AppConfig.getConfig("download.path") ??
+            getGlobalContext().appPath.downloads;
+          const downloadPath = window.path.resolve(
+            downloadBasePath,
+            `./${fileName}.${ext}`
+          );
+          downloadMusicImplWithSource(it, downloadPath, mediaSource, mediaQuality, (stateData) => {
+            downloadingProgress.set(pk, stateData);
+            ee.emit(DownloadEvts.DownloadStatusUpdated, it, ChangeStateData(stateData, 0, upload ? 0.5 : 1.0));
+            if (stateData.state === DownloadState.DONE) {
+              downloadingMusicStore.setValue((prev) =>
+                prev.filter((di) => !isSameMedia(it, di))
+              );
+              if (!upload) {
+                downloadingProgress.delete(pk);
+                toast.success("下载成功");
+                resolve();
+              } else {
+                uploadOssLocalFile(downloadPath, ossPathKey, (stateData) => {
+                  downloadingProgress.set(pk, stateData);
+                  ee.emit(DownloadEvts.DownloadStatusUpdated, it, ChangeStateData(stateData, 0.5, 0.5));
+                  if (stateData.state === DownloadState.DONE) {
+                    downloadingProgress.delete(pk);
+                    toast.success("下载并上传成功");
+                    resolve();
+                  } else if (stateData.state === DownloadState.ERROR) {
+                    toast.error("下载成功但上传失败");
+                    resolve();
+                  }
+                });
+              }
+            } else if (stateData.state === DownloadState.ERROR) {
+              toast.error("下载失败,download:"+stateData.downloaded);
+              resolve();
+            }
+          });
+        });
+      };
+    });
+
+    downloadingMusicStore.setValue((prev) => [...prev, ..._musicItems]);
+    downloadingQueue.addAll(callbacks);
+  }
+
+
+}
+
+async function downloadMusicImplWithSource(
+  musicItem: IMusic.IMusicItem,
+  downloadPath: string,
+  mediaSource: IPlugin.IMediaSourceResult, mediaQuality: IMusic.IQualityKey,
+  onStateChange: IOnStateChangeFunc
+) {
+  try {
+    if (mediaSource?.url) {
+      downloaderWorker.downloadFile(
+        mediaSource,
+        downloadPath,
+        Comlink.proxy((dataState) => {
+          onStateChange(dataState);
+          if (dataState.state === DownloadState.DONE) {
+            addDownloadedMusicToList(
+              setInternalData<IMusic.IMusicItemInternalData>(
+                musicItem as any,
+                "downloadData",
+                {
+                  path: downloadPath,
+                  quality: mediaQuality,
+                },
+                true
+              ) as IMusic.IMusicItem
+            );
+          }
+        })
+      );
+    } else {
+      throw new Error("Invalid Source");
+    }
+  } catch (e) {
+    console.log(e, "ERROR");
+    onStateChange({
+      state: DownloadState.ERROR,
+      msg: e?.message,
+    });
+  }
+}
+
+
 
 async function startDownload(
   musicItems: IMusic.IMusicItem | IMusic.IMusicItem[]
@@ -244,5 +546,9 @@ const Downloader = {
   removeDownloadedMusic,
   setDownloadingConcurrency,
   useDownloadState,
+  startOssUpload,
+  linkLocalFile,
+  autoLinkAllSheet,
+  autoUnLinkAllSheet,
 };
 export default Downloader;

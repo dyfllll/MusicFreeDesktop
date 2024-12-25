@@ -27,6 +27,9 @@ export default function Extra() {
       <SpeedBtn></SpeedBtn>
       <VolumeBtn></VolumeBtn>
       <LyricBtn></LyricBtn>
+      <BackupBtn></BackupBtn>
+      <DownloadBtn></DownloadBtn>
+      <RankBtn></RankBtn>
       <div
         className="extra-btn"
         onClick={() => {
@@ -305,3 +308,77 @@ function LyricBtn() {
     </div>
   );
 }
+
+function BackupBtn() {
+  const enableAutoBackup = useAppConfig("backup.oss.enable");
+
+  return (
+    <div
+      className={classNames({
+        "extra-btn": true,
+        highlight: enableAutoBackup,
+      })}
+      role="button"
+      onClick={ () => {
+        AppConfig.setConfig({
+          "backup.oss.enable": !enableAutoBackup
+        });
+      }}
+    >
+      <SvgAsset
+        iconName={"oss-upload"}
+        title="自动备份"
+      ></SvgAsset>
+    </div>
+  );
+}
+
+function DownloadBtn() {
+  const enableAutoDownload = useAppConfig("backup.oss.playDownload");
+
+  return (
+    <div
+      className={classNames({
+        "extra-btn": true,
+        highlight: enableAutoDownload,
+      })}
+      role="button"
+      onClick={ () => {
+        AppConfig.setConfig({
+          "backup.oss.playDownload": !enableAutoDownload
+        });
+      }}
+    >
+      <SvgAsset
+        size={20}      
+        iconName={"array-download-tray"}
+        title="播放时自动下载"
+      ></SvgAsset>
+    </div>
+  );
+}
+
+function RankBtn() {
+  const ossRank = useAppConfig("backup.oss.rank");
+
+  return (
+    <div
+      className={classNames({
+        "extra-btn": true,
+        highlight: ossRank,
+      })}
+      role="button"
+      onClick={ () => {
+        AppConfig.setConfig({
+          "backup.oss.rank": !ossRank
+        });
+      }}
+    >
+      <SvgAsset  
+        iconName={"oss-rank"}
+        title="优先使用备份"
+      ></SvgAsset>
+    </div>
+  );
+}
+

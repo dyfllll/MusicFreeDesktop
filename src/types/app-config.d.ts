@@ -89,6 +89,45 @@ interface _IAppConfig {
     /** 密码 */
     "backup.webdav.password": string;
 
+    /** secretId */
+    "backup.oss.secretId": string;
+
+    /** secretKey */
+    "backup.oss.secretKey": string;
+
+    /** bucket */
+    "backup.oss.bucket": string;
+
+    /** region */
+    "backup.oss.region": string;
+
+    /** s3SecretId */
+    "backup.oss.s3SecretId": string;
+
+    /** s3SecretKey */
+    "backup.oss.s3SecretKey": string;
+
+    /** s3Bucket */
+    "backup.oss.s3Bucket":string;
+
+    /** s3EndpointLocal */
+    "backup.oss.s3EndpointLocal":string
+
+    /** s3EndpointServer */
+    "backup.oss.s3EndpointServer":string
+
+    /** 局域网模式 */
+    "backup.oss.s3Local": boolean;
+
+    /** 是否开启自动上传 */
+    "backup.oss.enable": boolean;
+
+    /** 播放同时下载文件 */
+    "backup.oss.playDownload": boolean;
+    
+    /** 优先使用备份数据 */
+    "backup.oss.rank": boolean;
+
     /** 本地音乐配置 */
     "localMusic.watchDir": string[];
 
