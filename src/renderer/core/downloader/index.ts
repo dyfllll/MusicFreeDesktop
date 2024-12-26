@@ -289,7 +289,6 @@ async function startOssUpload(musicItem: IMusic.IMusicItem,
           const fileName = `${it.title}-${it.artist}`.replace(/[/|\\?*"<>:]/g, "_");
           let ext = mediaSource.url.match(/.*\/.+\.([^./?#]+)/)?.[1] ?? "mp3";
           ext = ext.split('&')[0];
-          ext = ext=="b3dm"?"mp3":ext;
           const downloadBasePath =
             AppConfig.getConfig("download.path") ??
             getGlobalContext().appPath.downloads;

@@ -103,13 +103,13 @@ function getS3PathKey(mediaItem: IMusic.IMusicItem) {
         if (checkOssPlatform(mediaItem))
             return mediaItem.id;
         else
-            return `${ossPathData}/${mediaItem.title}-${mediaItem.artist}.mp3`;
+            return `${ossPathData}/${getOssPathName(mediaItem)}.mp3`;
     }
     return null;
 }
 
 function getOssPathName(mediaItem: IMusic.IMusicItem) {
-    return `${mediaItem.title}-${mediaItem.artist}`;
+    return `${mediaItem.title}-${mediaItem.artist}`.replace(/[/|\\?*"<>:]/g, "_");
 }
 
 

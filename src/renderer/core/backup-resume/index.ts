@@ -38,10 +38,10 @@ async function resume(data: string | Record<string, any>, overwrite?: boolean) {
 
 
 async function resumeOSS(data: string | Record<string, any>, overwrite?: boolean) {
-  const getTitleId= (id:string)=> id=="favorite"?"我喜欢":id;
+  const getTitleId = (id: string) => id == "favorite" ? "我喜欢" : id;
   const dataObj = typeof data === "string" ? JSON.parse(data) : data;
 
-  const currentSheets = MusicSheet.frontend.getAllSheets();
+  const currentSheets = await MusicSheet.frontend.exportAllSheetDetails();
   const allSheets: IMusic.IMusicSheetItem[] = dataObj.musicSheets;
 
   let localSheetMap: Map<string, IMusic.IDBMusicSheetItem> = new Map<string, IMusic.IDBMusicSheetItem>();
@@ -55,30 +55,34 @@ async function resumeOSS(data: string | Record<string, any>, overwrite?: boolean
       let localSheet = localSheetMap.get(key);
       let localList = localSheet.musicList;
       let remoteList = remoteSheet.musicList;
-      let addList: IMusic.IMusicItem[] = [];
+      let backupList: IMusic.IMusicItem[] = [];
 
       let checkIndex = 0;
-      for (let i = 0; i < localList.length; i++) {
-        let local = localList[i];
-        for (let j = checkIndex; j < remoteList.length; j++) {
-          let remote = remoteList[j];
-          if (remote.id == local.id) {
-            let temp = remoteList[checkIndex];
-            remoteList[checkIndex] = remote;
-            remoteList[j] = temp;
+      for (let i = 0; i < remoteList.length; i++) {
+        let remote = remoteList[i];
+        for (let j = checkIndex; j < localList.length; j++) {
+          let local = localList[j];
+          if (local.id == remote.id) {
+            let temp = localList[checkIndex];
+            localList[checkIndex] = local;
+            localList[j] = temp;
             checkIndex++;
             break;
           }
         }
       }
 
-      for (let i = checkIndex; i < remoteList.length; i++) {
-        addList.push(remoteList[i]);
+      for (let i = checkIndex; i < localList.length; i++) {
+        backupList.push(localList[i] as IMusic.IMusicItem);
+      }
+      
+      if (backupList.length > 0) {
+        const backupSheet = await MusicSheet.frontend.addSheet(`${key}_backup`);
+        await MusicSheet.frontend.addMusicToSheet(backupList, backupSheet.id);
       }
 
-      if (addList.length > 0)
-        await MusicSheet.frontend.addMusicToSheet(addList, localSheet.id);
-
+      await MusicSheet.frontend.clearSheet(localSheet.id);
+      await MusicSheet.frontend.addMusicToSheet(remoteSheet.musicList, localSheet.id);
     } else {
       const newSheet = await MusicSheet.frontend.addSheet(remoteSheet.title);
       await MusicSheet.frontend.addMusicToSheet(remoteSheet.musicList, newSheet.id);
