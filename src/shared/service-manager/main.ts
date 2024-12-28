@@ -110,10 +110,6 @@ class ServiceManager {
         this.serviceMap.get(serviceName)?.instance?.stop?.();
     }
 
-    stopAllService(){
-        this.serviceMap.forEach((value)=>{value.instance?.stop?.()});
-    }
-
     setup(windowManager: IWindowManager) {
         this.windowManager = windowManager;
 

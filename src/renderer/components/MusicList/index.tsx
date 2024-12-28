@@ -38,6 +38,7 @@ import {shellUtil} from "@shared/utils/renderer";
 import ossUtil from "@/renderer/core/ossUtil";
 import { dialogUtil, fsUtil } from "@shared/utils/renderer";
 import { getGlobalContext } from "@/shared/global-context/renderer";
+import * as backend from "@/renderer/core/music-sheet/backend";
 
 interface IMusicListProps {
     /** 展示的播放列表 */
@@ -179,6 +180,85 @@ export function showMusicContextMenu(
             }
         );
     }
+    menuItems.push({
+        title: "移动",
+        icon: "playlist",
+        show: !!sheetType && sheetType !== "play-list",
+        onClick() {
+            hideModal();
+            showModal("SimpleInputWithState", {
+                title: "移动选中到输入值之后",
+                placeholder: (
+                    "请输入要移动的位置编号..."
+                ),
+                maxLength: 30,
+                async onOk(text) {
+                    const num = parseInt(text);
+                    if (isNaN(num)) {
+                        toast.warn("输入值不是数字");
+                        return;
+                    }
+
+                    let targets: IMusic.IMusicItem[];
+                    if (isArray)
+                        targets = musicItems;
+                    else
+                        targets = [musicItems];
+
+                    const sheet = await backend.getSheetItemDetail(sheetType);
+                    if (!sheet) {
+                        toast.warn("获取歌单失败");
+                        return;
+                    }
+
+                    const musicList = sheet.musicList;
+
+                    let targetIndex = Math.min(Math.max(num, 0), musicList.length);
+                    let beforeCount = 0;
+
+                    const itemsToMove: IMusic.IMusicItem[] = [];
+                    const newList: IMusic.IMusicItem[] = [];
+
+                    let checkIndex = 0;
+                    for (let i = 0; i < sheet.musicList.length; i++) {
+                        const item = sheet.musicList[i];
+
+                        let find = false;
+                        for (let j = checkIndex; j < targets.length; j++) {
+                            const target = targets[j];
+                            if (target.id == item.id) {
+                                const temp = targets[checkIndex];
+                                targets[checkIndex] = target;
+                                targets[j] = temp;
+                                checkIndex++;
+                                find = true;
+                                break;
+                            }
+                        }
+
+                        if (find) {
+                            if (i < targetIndex)
+                                beforeCount++;
+                            itemsToMove.push(item);
+                        }
+                        else
+                            newList.push(item);
+                    }
+
+                    targetIndex -= beforeCount;         
+
+                    newList.splice(targetIndex, 0, ...itemsToMove);
+
+                    MusicSheet.frontend.updateSheetMusicOrder(sheet.id, newList);
+
+                    toast.success("移动成功");
+
+                    hideModal();
+                },
+
+            });
+        },
+    });
     menuItems.push(
         {
             title: i18n.t("music_list_context_menu.next_play"),
