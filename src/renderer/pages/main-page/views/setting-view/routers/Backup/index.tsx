@@ -321,15 +321,32 @@ export default function Backup() {
                 ></InputSettingItem>
                  <InputSettingItem
                     width="100%"
-                    label="serverEndpoint"
+                    label="remoteEndpoint"
                     trim
-                    keyPath="backup.oss.s3EndpointServer"
+                    keyPath="backup.oss.s3EndpointRemote"
                 ></InputSettingItem>
+            </div>
+            <div className={"label-container setting-row"}>
+                Server
+            </div>
+            <div className="webdav-backup-container">
+            <InputSettingItem
+                    width="100%"
+                    label="localEndpoint"
+                    trim
+                    keyPath="backup.oss.serverEndpointLocal"
+            ></InputSettingItem>
+            <InputSettingItem
+                    width="100%"
+                    label="remoteEndpoint"
+                    trim
+                    keyPath="backup.oss.serverEndpointRemote"
+            ></InputSettingItem>        
             </div>
             <div className="setting-view--backup-container">
                 <CheckBoxSettingItem
                     label="local模式"
-                    keyPath="backup.oss.s3Local"
+                    keyPath="backup.oss.netLocal"
                 ></CheckBoxSettingItem>
             </div>
 

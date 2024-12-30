@@ -113,11 +113,17 @@ interface _IAppConfig {
     /** s3EndpointLocal */
     "backup.oss.s3EndpointLocal":string
 
-    /** s3EndpointServer */
-    "backup.oss.s3EndpointServer":string
+    /** s3EndpointRemote */
+    "backup.oss.s3EndpointRemote":string
+
+    /** serverEndpointLocal */
+    "backup.oss.serverEndpointLocal":string
+
+    /** serverEndpointRemote */
+    "backup.oss.serverEndpointRemote":string
 
     /** 局域网模式 */
-    "backup.oss.s3Local": boolean;
+    "backup.oss.netLocal": boolean;
 
     /** 是否开启自动上传 */
     "backup.oss.enable": boolean;

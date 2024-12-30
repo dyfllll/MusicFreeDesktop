@@ -22,11 +22,12 @@ let isSetup = false;
 let s3Client: S3 = null;
 let s3SecretId = "";
 let s3SecretKey = "";
-let s3Local = true;
 let s3Bucket = "";
 let s3Region = "us-east-1";
 let s3EndpointLocal = "";
-let s3EndpointServer = "";
+let s3EndpointRemote = "";
+
+let netLocal = true;
 
 
 async function setup() {
@@ -44,8 +45,8 @@ async function setup() {
         local = false;
     }
     isSetup = true;
-    AppConfig.setConfig({ "backup.oss.s3Local": local })
-    console.log("use s3 url:" + (local ? s3EndpointLocal : s3EndpointServer));
+    AppConfig.setConfig({ "backup.oss.netLocal": local })
+    console.log("use s3 url:" + (local ? s3EndpointLocal : s3EndpointRemote));
     console.log("oss setup....");
 
 }
@@ -61,8 +62,8 @@ function getS3Object() {
     const secretKey = AppConfig.getConfig("backup.oss.s3SecretKey") ?? "";
     const bucket = AppConfig.getConfig("backup.oss.s3Bucket") ?? "";
     const endpointLocal = AppConfig.getConfig("backup.oss.s3EndpointLocal") ?? "";
-    const endpointServer = AppConfig.getConfig("backup.oss.s3EndpointServer") ?? "";
-    const local = isSetup ? AppConfig.getConfig("backup.oss.s3Local") : true;
+    const endpointRemote = AppConfig.getConfig("backup.oss.s3EndpointRemote") ?? "";
+    const local = isSetup ? AppConfig.getConfig("backup.oss.netLocal") : true;
 
     let create = false;
     create = create || s3Client == null;
@@ -70,8 +71,8 @@ function getS3Object() {
     create = create || s3SecretKey != secretKey;
     // create = create || s3Bucket != bucket;
     create = create || s3EndpointLocal != endpointLocal;
-    create = create || s3EndpointServer != endpointServer;
-    create = create || s3Local != local;
+    create = create || s3EndpointRemote != endpointRemote;
+    create = create || netLocal != local;
 
     if (create) {
         const config = {
@@ -80,7 +81,7 @@ function getS3Object() {
                 accessKeyId: secretId,
                 secretAccessKey: secretKey,
             },
-            endpoint: local ? endpointLocal : endpointServer,
+            endpoint: local ? endpointLocal : endpointRemote,
             forcePathStyle: true,
         };
         s3Client = new S3(config);
@@ -90,8 +91,8 @@ function getS3Object() {
     s3SecretKey = secretKey;
     s3Bucket = bucket;
     s3EndpointLocal = endpointLocal;
-    s3EndpointServer = endpointServer;
-    s3Local = local;
+    s3EndpointRemote = endpointRemote;
+    netLocal = local;
 
     return s3Client;
 }
