@@ -249,6 +249,7 @@ async function startOssUpload(musicItem: IMusic.IMusicItem,
           }
           downloadingProgress.get(pk).state = DownloadState.DOWNLOADING;
           await new Promise<void>((resolve) => {
+            toast.info("开始上传...");
             uploadOssLocalFile(localPath, ossPathKey, (stateData) => {
               downloadingProgress.set(pk, stateData);
               ee.emit(DownloadEvts.DownloadStatusUpdated, it, stateData);
@@ -308,6 +309,7 @@ async function startOssUpload(musicItem: IMusic.IMusicItem,
                 toast.success("下载成功");
                 resolve();
               } else {
+                toast.info("开始上传...");
                 uploadOssLocalFile(downloadPath, ossPathKey, (stateData) => {
                   downloadingProgress.set(pk, stateData);
                   ee.emit(DownloadEvts.DownloadStatusUpdated, it, ChangeStateData(stateData, 0.5, 0.5));

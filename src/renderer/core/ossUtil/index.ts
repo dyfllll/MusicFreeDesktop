@@ -3,6 +3,7 @@ import AppConfig from "@shared/app-config/renderer";
 import { S3, GetObjectCommand, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { Upload } from "@aws-sdk/lib-storage";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { localPluginName, RequestStateCode } from "@/common/constant";
 
 let oss: COS = null;
 let ossSecretId = "";
@@ -325,6 +326,127 @@ function getCosUrl(keyPath: string) {
 }
 
 
+let playCountStore: any = {};
+let playCountStoreVaild = false;
+let playCountAPIToken: string = null;
+let playCountStoreSheetId = "";
+
+
+function getAPIUrl() {
+    const local = AppConfig.getConfig("backup.oss.netLocal") ?? true;
+    let url;
+    if (local) {
+        url = AppConfig.getConfig("backup.oss.serverEndpointLocal") ?? "";
+    }
+    else {
+        url = AppConfig.getConfig("backup.oss.serverEndpointRemote") ?? "";
+    }
+    return url;
+}
+
+function getPlayCountKey(item: IMusic.IMusicItem) {
+    return `${item.platform}-${item.id}`;
+}
+
+function getPlayCount(item: IMusic.IMusicItem) {
+    const key = getPlayCountKey(item);
+    return playCountStore[key];
+}
+
+function setPlayCount(item: IMusic.IMusicItem) {
+    if (!playCountStoreVaild) {
+        return false;
+    }
+
+    const key = getPlayCountKey(item);
+    playCountStore[key] = (playCountStore[key] ?? 0) + 1;
+    fetch(`${getAPIUrl()}/music/setPlayCount`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': "application/json",
+            "Authorization": playCountAPIToken
+        },
+        body: JSON.stringify({ key: key })
+    }).catch(e => { console.log(e); });
+
+    return true;
+}
+
+
+async function fetchPlayCountData(musicList: IMusic.IMusicItem[]) {
+    try {
+        if (!playCountAPIToken) {
+            const tokenResult = await fetch(`${getAPIUrl()}/api/login`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': "application/json",
+                    "Authorization": playCountAPIToken
+                },
+                body: JSON.stringify({
+                    username: AppConfig.getConfig("backup.oss.s3SecretId"),
+                    password: AppConfig.getConfig("backup.oss.s3SecretKey")
+                })
+            });
+            playCountAPIToken = (await tokenResult.json()).token;
+        }
+
+        if (!playCountAPIToken)
+            throw new Error(`error token`);
+
+        // console.log(playCountAPIToken);
+
+        const response = await fetch(`${getAPIUrl()}/music/getPlayCountList`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': "application/json",
+                'Authorization': playCountAPIToken
+            },
+            body: JSON.stringify(musicList.map(it => getPlayCountKey(it)))
+        });
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const result = await response.json();
+        return result.data;
+    } catch (error) {
+        throw new Error(error);
+    } finally {
+    }
+}
+
+
+function setupPlayCountStore(musicSheet: IMusic.IMusicSheetItem, musicList: IMusic.IMusicItem[]) {
+    return new Promise<boolean>((resolve, reject) => {
+        if (musicSheet?.platform === localPluginName) {
+            if (playCountStoreSheetId != musicSheet.id) {
+                fetchPlayCountData(musicList)
+                    .then((data: any[]) => {
+                        data?.forEach((item: any) => {
+                            playCountStore[item.key] = item.count;
+                        });
+                        playCountStoreVaild = true;
+                        resolve(true);
+                    })
+                    .catch(e => {
+                        console.log(e);
+                        playCountStoreVaild = false;
+                        resolve(false);
+                    });
+                playCountStoreSheetId = musicSheet.id;
+            } else {
+                resolve(false);
+            }
+
+        } else {
+            playCountStoreVaild = false;
+            resolve(false);
+        }
+    });
+}
+
+
+
+
 export const ossUtil =
 {
     setup,
@@ -341,6 +463,10 @@ export const ossUtil =
 
     dowloadCosBackupFile,
     uploadCosBackupFile,
+
+    setupPlayCountStore,
+    getPlayCount,
+    setPlayCount,
 }
 
 export default ossUtil;

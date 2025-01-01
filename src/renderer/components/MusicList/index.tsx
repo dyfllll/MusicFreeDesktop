@@ -69,87 +69,6 @@ interface IMusicListProps {
     contextMenu?: IContextMenuItem[];
 }
 
-let playCountStore: any = {};
-let playCountStoreVaild = false;
-let playCountAPIToken: string = null;
-
-function getAPIUrl() {
-    const local = AppConfig.getConfig("backup.oss.netLocal") ?? true;
-    let url;
-    if (local) {
-        url = AppConfig.getConfig("backup.oss.serverEndpointLocal") ?? "";
-    }
-    else {
-        url = AppConfig.getConfig("backup.oss.serverEndpointRemote") ?? "";
-    }
-    return url;
-}
-
-function getMusicItemKey(item: IMusic.IMusicItem) {
-    return `${item.platform}-${item.id}`;
-}
-function getMusicItemPlayCount(item: IMusic.IMusicItem) {
-    const key = getMusicItemKey(item);
-    return playCountStore[key];
-}
-function setMusicItemPlay(item: IMusic.IMusicItem) {
-    if (!playCountStoreVaild) return false;
-    const key = getMusicItemKey(item);
-    playCountStore[key] = (playCountStore[key] ?? 0) + 1;
-    fetch(`${getAPIUrl()}/music/setPlayCount`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': "application/json",
-            "Authorization": playCountAPIToken
-        },
-        body: JSON.stringify({ key: key })
-    }).catch(e => { console.log(e); });
-    return true;
-}
-async function setupPlayCountStore(musicList: IMusic.IMusicItem[]) {
-    try {
-        if (!playCountAPIToken) {
-            const tokenResult = await fetch(`${getAPIUrl()}/api/login`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': "application/json",
-                    "Authorization": playCountAPIToken
-                },
-                body: JSON.stringify({
-                    username: AppConfig.getConfig("backup.oss.s3SecretId"),
-                    password: AppConfig.getConfig("backup.oss.s3SecretKey")
-                })
-            });
-            playCountAPIToken = (await tokenResult.json()).token;
-        }
-
-        if (!playCountAPIToken)
-            throw new Error(`error token`);
-
-        // console.log(playCountAPIToken);
-
-        const response = await fetch(`${getAPIUrl()}/music/getPlayCountList`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': "application/json",
-                'Authorization': playCountAPIToken
-            },
-            body: JSON.stringify(musicList.map(it => getMusicItemKey(it)))
-        });
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const result = await response.json();
-        playCountStore = result.data;
-        playCountStoreVaild = true;
-    } catch (error) {
-        playCountStoreVaild = false;
-        throw new Error(error);
-    } finally {
-    }
-}
-
-
 const columnHelper = createColumnHelper<IMusic.IMusicItem>();
 const columnDef: ColumnDef<IMusic.IMusicItem>[] = [
     columnHelper.display({
@@ -223,12 +142,12 @@ const columnDef: ColumnDef<IMusic.IMusicItem>[] = [
         minSize: 48,
         // enableHiding: true,
         cell: (info) =>
-            getMusicItemPlayCount(info.row.original) ?? "--",
+            ossUtil.getPlayCount(info.row.original) ?? "--",
         // @ts-ignore
         fr: 1,
         sortingFn: (rowA, rowB, columnId) => {
-            const va = getMusicItemPlayCount(rowA.original) ?? 0;
-            const vb = getMusicItemPlayCount(rowB.original) ?? 0;
+            const va = ossUtil.getPlayCount(rowA.original) ?? 0;
+            const vb = ossUtil.getPlayCount(rowB.original) ?? 0;
             if (va > vb) return 1;
             else if (va < vb) return -1;
             else return 0;
@@ -645,9 +564,9 @@ function _MusicList(props: IMusicListProps) {
     const lastActiveIndexRef = useRef(0);
 
     useEffect(() => {
-        setupPlayCountStore(musicList).
-            then(_ => setActiveItems(new Set())).
-            catch(e => console.log(e));
+        ossUtil.setupPlayCountStore(musicSheet, musicList).then((refresh) => {
+            if (refresh) setActiveItems(new Set());
+        });
     }, []);
 
     useEffect(() => {
@@ -848,8 +767,10 @@ function _MusicList(props: IMusicListProps) {
                                 } else {
                                     trackPlayer.playMusic(row.original);
                                 }
-                                if (setMusicItemPlay(row.original))
+
+                                if(ossUtil.setPlayCount(row.original))
                                     setActiveItems(new Set(activeItems));
+                             
                             }}
                             draggable={enableDrag}
                             onDragStart={(e) => {
