@@ -564,9 +564,7 @@ function _MusicList(props: IMusicListProps) {
     const lastActiveIndexRef = useRef(0);
 
     useEffect(() => {
-        ossUtil.setupPlayCountStore(musicSheet, musicList).then((refresh) => {
-            if (refresh) setActiveItems(new Set());
-        });
+        ossUtil.setupPlayCountStore(musicSheet, musicList, () => setActiveItems(new Set()));
     }, []);
 
     useEffect(() => {
@@ -767,10 +765,6 @@ function _MusicList(props: IMusicListProps) {
                                 } else {
                                     trackPlayer.playMusic(row.original);
                                 }
-
-                                if(ossUtil.setPlayCount(row.original))
-                                    setActiveItems(new Set(activeItems));
-                             
                             }}
                             draggable={enableDrag}
                             onDragStart={(e) => {

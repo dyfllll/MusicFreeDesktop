@@ -390,6 +390,8 @@ class TrackPlayer {
                 return;
             }
 
+            ossUtil.setPlayCount(nextMusicItem);
+
             this.setCurrentQuality(quality);
             this.setTrack(mediaSource, nextMusicItem, {
                 seekTo,
