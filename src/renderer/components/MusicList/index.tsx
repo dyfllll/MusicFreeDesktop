@@ -267,7 +267,7 @@ export function showMusicContextMenu(
 
                     newList.splice(targetIndex, 0, ...itemsToMove);
 
-                    MusicSheet.frontend.updateSheetMusicOrder(sheet.id, newList);
+                    await MusicSheet.frontend.updateSheetMusicOrder(sheet.id, newList);
 
                     toast.success("移动成功");
 

@@ -390,7 +390,7 @@ async function fetchPlayCountData(musicList: IMusic.IMusicItem[]) {
                     password: AppConfig.getConfig("backup.oss.s3SecretKey")
                 })
             });
-            playCountAPIToken = (await tokenResult.json()).token;
+            playCountAPIToken = (await tokenResult.json()).data.token;
         }
 
         if (!playCountAPIToken)

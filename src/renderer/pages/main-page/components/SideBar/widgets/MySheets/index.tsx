@@ -14,7 +14,7 @@ import { toast } from "react-toastify";
 import ossUtil from "@/renderer/core/ossUtil";
 import BackupResume from "@/renderer/core/backup-resume";
 import { dialogUtil, fsUtil } from "@shared/utils/renderer";
-
+import * as backend from "@/renderer/core/music-sheet/backend";
 
 export default function MySheets() {
   const sheetIdMatch = useMatch(
@@ -119,6 +119,27 @@ export default function MySheets() {
 
   }
 
+  const collator = new Intl.Collator('en');
+  function onSortClick(sheetId: string, tips: string, compareFn: (a: IMusic.IMusicItem, b: IMusic.IMusicItem) => number) {
+    hideModal();
+    showModal("Reconfirm", {
+      title: "排序",
+      content: tips,
+      async onConfirm() {
+        hideModal();
+        const sheet = await backend.getSheetItemDetail(sheetId);
+        if (!sheet) {
+          toast.warn("获取歌单失败");
+          return;
+        }
+        const musicList = sheet.musicList;
+        musicList.sort(compareFn);
+        await MusicSheet.frontend.updateSheetMusicOrder(sheet.id, musicList);
+        navigate(`/main/musicsheet/${encodeURIComponent(localPluginName)}/${encodeURIComponent(sheetId)}`);
+        toast.success("排序成功");
+      },
+    });
+  }
 
   return (
     <div className="side-bar-container--my-sheets">
@@ -217,6 +238,45 @@ export default function MySheets() {
                   x: e.clientX,
                   y: e.clientY,
                   menuItems: [
+                    {
+                      title: "歌单排序",
+                      icon: "playlist",
+                      subMenu: [
+                        {
+                          title: "按标题排序",
+                          onClick() {
+                            onSortClick(item.id, "是否按标题排序", (a, b) => {
+                              return collator.compare(a.title, b.title);
+                            });
+                          }
+                        },
+                        {
+                          title: "按作者排序",
+                          onClick() {
+                            onSortClick(item.id, "是否按作者排序", (a, b) => {
+                              return collator.compare(a.artist, b.artist);
+                            });
+                          }
+                        },
+                        {
+                          title: "按播放次数排序",
+                          onClick() {
+                            if (currentSheetId != item.id) {
+                              toast.warn("必须打开歌单才能次数排序");
+                              return;
+                            }
+                            onSortClick(item.id, "是否按播放次数排序", (a, b) => {
+                              const va = ossUtil.getPlayCount(a) ?? 0;
+                              const vb = ossUtil.getPlayCount(b) ?? 0;
+                              if (va > vb) return -1;
+                              else if (va < vb) return 1;
+                              else return 0;
+                            });
+                          }
+                        }
+
+                      ]
+                    },
                     {
                       title: t("side_bar.rename_sheet"),
                       icon: "pencil-square",

@@ -181,7 +181,7 @@ async function autoUnLinkAllSheet() {
 
 async function linkLocalFile(musicItem: IMusic.IMusicItem, mediaQuality: IMusic.IQualityKey, filePath: string) {
   if (await fsUtil.isFile(filePath)) {
-    addDownloadedMusicToList(
+    await addDownloadedMusicToList(
       setInternalData<IMusic.IMusicItemInternalData>(
         musicItem as any,
         "downloadData",
