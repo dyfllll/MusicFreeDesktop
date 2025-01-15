@@ -1,11 +1,10 @@
-import COS from "cos-js-sdk-v5";
 import AppConfig from "@shared/app-config/renderer";
 import { S3, GetObjectCommand, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { Upload } from "@aws-sdk/lib-storage";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { localPluginName, RequestStateCode } from "@/common/constant";
 
-let oss: COS = null;
+let oss: S3 = null;
 let ossSecretId = "";
 let ossSecretKey = "";
 let ossBucket = "";
@@ -275,13 +274,20 @@ function getCosObject() {
     create = create || ossSecretId != secretId;
     create = create || ossSecretKey != secretKey;
     // create = create || ossBucket != bucket;
-    // create = create || ossRegion != region;
+    create = create || ossRegion != region;
 
     if (create) {
-        oss = new COS({
-            SecretId: secretId,
-            SecretKey: secretKey,
-        });
+
+        const config = {
+            region: s3Region,
+            credentials: {
+                accessKeyId: secretId,
+                secretAccessKey: secretKey,
+            },
+            endpoint: `https://cos.${region}.myqcloud.com`,
+            forcePathStyle: false,
+        };
+        oss = new S3(config);
     }
 
     ossSecretId = secretId;
@@ -299,31 +305,19 @@ function getCosBackupKey() {
 async function dowloadCosBackupFile() {
     const result = await getCosObject().getObject({
         Bucket: ossBucket,
-        Region: ossRegion,
         Key: getCosBackupKey(),
-        DataType: "text",
     });
-    return result.Body;
+    return result.Body.transformToString();
 }
 
 async function uploadCosBackupFile(backUp: string) {
-    getCosObject().uploadFile({
+    getCosObject().putObject({
         Bucket: ossBucket,
-        Region: ossRegion,
         Key: getCosBackupKey(),
         Body: backUp,
     });
 }
 
-//取oss签名地址
-function getCosUrl(keyPath: string) {
-    const url = getCosObject()?.getObjectUrl({
-        Bucket: ossBucket,
-        Region: ossRegion,
-        Key: keyPath,
-    }, null) ?? null;
-    return url;
-}
 
 
 let playCountStore: any = {};

@@ -83,7 +83,6 @@
     "color": "^4.2.3",
     "comlink": "^4.4.2",
     "compare-versions": "^6.1.0",
-    "cos-js-sdk-v5": "^1.8.6",
     "crypto-js": "^4.2.0",
     "dayjs": "^1.11.11",
     "dexie": "^3.2.4",
