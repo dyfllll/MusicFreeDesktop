@@ -254,9 +254,9 @@ export default function Backup() {
                 ></InputSettingItem>
                 <InputSettingItem
                     width="100%"
-                    label="region"
+                    label="endpoint"
                     trim
-                    keyPath="backup.oss.region"
+                    keyPath="backup.oss.endpoint"
                 ></InputSettingItem>
         
             </div>
@@ -344,6 +344,10 @@ export default function Backup() {
             ></InputSettingItem>        
             </div>
             <div className="setting-view--backup-container">
+                 <CheckBoxSettingItem
+                    label="自动更新歌单"
+                    keyPath="backup.oss.autoUpdate"      
+                ></CheckBoxSettingItem>
                 <CheckBoxSettingItem
                     label="local模式"
                     keyPath="backup.oss.netLocal"

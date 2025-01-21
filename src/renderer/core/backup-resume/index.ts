@@ -38,21 +38,31 @@ async function resume(data: string | Record<string, any>, overwrite?: boolean) {
 
 
 async function resumeOSS(data: string | Record<string, any>, overwrite?: boolean) {
-  const getTitleId = (id: string) => id == "favorite" ? "我喜欢" : id;
+  const defaultSheetId = "favorite";
+  const defaultSheetTitle = "我喜欢";
+  const getTitleId = (id: string) => id === defaultSheetId ? defaultSheetTitle : id;
+  const getSheetKey = (sheet: IMusic.IMusicSheetItem | IMusic.IDBMusicSheetItem) => sheet.title ?? getTitleId(sheet.id);
   const dataObj = typeof data === "string" ? JSON.parse(data) : data;
 
-  const currentSheets = await MusicSheet.frontend.exportAllSheetDetails();
-  const allSheets: IMusic.IMusicSheetItem[] = dataObj.musicSheets;
+  const localSheets = await MusicSheet.frontend.exportAllSheetDetails();
+  const remoteSheets: IMusic.IMusicSheetItem[] = dataObj.musicSheets;
 
-  let localSheetMap: Map<string, IMusic.IDBMusicSheetItem> = new Map<string, IMusic.IDBMusicSheetItem>();
+  for (let i = 0; i < localSheets.length; i++) {
+    const localSheet = localSheets[i];
+    const key = getSheetKey(localSheet);
+    const remoteSheet = remoteSheets.find(e => getSheetKey(e) === key);
+    if (!remoteSheet && localSheet.id != defaultSheetId &&
+      localSheet.title && !localSheet.title.endsWith("_backup")) {
+      await MusicSheet.frontend.updateSheet(localSheet.id, {
+        title: `${key}_backup`,
+      });
+    }
+  }
 
-  currentSheets.map(it => localSheetMap.set(it.title ?? getTitleId(it.id), it));
-
-  for (const remoteSheet of allSheets) {
-
-    const key = remoteSheet.title ?? getTitleId(remoteSheet.id);
-    if (localSheetMap.has(key)) {
-      let localSheet = localSheetMap.get(key);
+  for (const remoteSheet of remoteSheets) {
+    const key = getSheetKey(remoteSheet);
+    const localSheet = localSheets.find(e => getSheetKey(e) === key);
+    if (localSheet) {
       let localList = localSheet.musicList;
       let remoteList = remoteSheet.musicList;
       let backupList: IMusic.IMusicItem[] = [];
@@ -75,12 +85,11 @@ async function resumeOSS(data: string | Record<string, any>, overwrite?: boolean
       for (let i = checkIndex; i < localList.length; i++) {
         backupList.push(localList[i] as IMusic.IMusicItem);
       }
-      
+
       if (backupList.length > 0) {
         const backupSheet = await MusicSheet.frontend.addSheet(`${key}_backup`);
         await MusicSheet.frontend.addMusicToSheet(backupList, backupSheet.id);
       }
-
       await MusicSheet.frontend.clearSheet(localSheet.id);
       await MusicSheet.frontend.addMusicToSheet(remoteSheet.musicList, localSheet.id);
     } else {

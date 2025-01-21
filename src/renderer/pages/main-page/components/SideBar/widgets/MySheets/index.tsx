@@ -15,6 +15,7 @@ import ossUtil from "@/renderer/core/ossUtil";
 import BackupResume from "@/renderer/core/backup-resume";
 import { dialogUtil, fsUtil } from "@shared/utils/renderer";
 import * as backend from "@/renderer/core/music-sheet/backend";
+import { useEffect } from "react";
 
 export default function MySheets() {
   const sheetIdMatch = useMatch(
@@ -88,7 +89,10 @@ export default function MySheets() {
         undefined,
         0
       );
-      await ossUtil.uploadCosBackupFile(backUp);
+      const hash = await ossUtil.uploadCosBackupFile(backUp);
+      AppConfig.setConfig({
+        "backup.oss.autoUpdateHash": hash
+      });
       toast.success(t("settings.backup.backup_success"));
 
     } catch (e) {
@@ -102,11 +106,14 @@ export default function MySheets() {
 
   async function onResumeClick() {
     try {
-      const resumeData = await ossUtil.dowloadCosBackupFile();    
+      const { hash, data } = await ossUtil.dowloadCosBackupFile();
       await BackupResume.resumeOSS(
-        resumeData,
+        data,
         AppConfig.getConfig("backup.resumeBehavior") === "overwrite"
       );
+      AppConfig.setConfig({
+        "backup.oss.autoUpdateHash": hash
+      });
       toast.success(t("settings.backup.resume_success"));
 
     } catch (e) {
@@ -140,6 +147,34 @@ export default function MySheets() {
       },
     });
   }
+
+  useEffect(() => {
+    const updateMusicList = async () => {
+      try {
+        const remoteHash = await ossUtil.getCosBackupFileHash();
+        const localHash = AppConfig.getConfig("backup.oss.autoUpdateHash");
+        if (remoteHash != localHash) {
+          const { hash, data } = await ossUtil.dowloadCosBackupFile();
+          await BackupResume.resumeOSS(
+            data,
+            AppConfig.getConfig("backup.resumeBehavior") === "overwrite"
+          );
+          AppConfig.setConfig({
+            "backup.oss.autoUpdateHash": hash
+          });
+          console.log("hash:" + hash);
+          toast.success("自动更新歌单成功");
+        }
+      } catch (error) {
+        toast.error("自动更新歌单失败");
+        console.log(error);
+      }
+    }
+    if (AppConfig.getConfig("backup.oss.autoUpdate")) {
+      updateMusicList();
+    }
+  }, []);
+
 
   return (
     <div className="side-bar-container--my-sheets">
@@ -231,9 +266,9 @@ export default function MySheets() {
                   navigate(`/main/musicsheet/${encodeURIComponent(localPluginName)}/${encodeURIComponent(item.id)}`);
               }}
               onContextMenu={(e) => {
-                if (item.id === defaultSheet.id) {
-                  return;
-                }
+                // if (item.id === defaultSheet.id) {
+                //   return;
+                // }
                 showContextMenu({
                   x: e.clientX,
                   y: e.clientY,

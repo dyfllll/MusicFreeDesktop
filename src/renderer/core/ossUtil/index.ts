@@ -8,7 +8,7 @@ let oss: S3 = null;
 let ossSecretId = "";
 let ossSecretKey = "";
 let ossBucket = "";
-let ossRegion = "";
+let ossEndpoint = "";
 
 
 const ossPathData = "data/320k";
@@ -265,7 +265,7 @@ function getCosObject() {
     const secretId = AppConfig.getConfig("backup.oss.secretId") ?? "";
     const secretKey = AppConfig.getConfig("backup.oss.secretKey") ?? "";
     const bucket = AppConfig.getConfig("backup.oss.bucket") ?? "";
-    const region = AppConfig.getConfig("backup.oss.region") ?? "";
+    const endpoint = AppConfig.getConfig("backup.oss.endpoint") ?? "";
 
 
 
@@ -274,7 +274,7 @@ function getCosObject() {
     create = create || ossSecretId != secretId;
     create = create || ossSecretKey != secretKey;
     // create = create || ossBucket != bucket;
-    create = create || ossRegion != region;
+    create = create || ossEndpoint != endpoint;
 
     if (create) {
 
@@ -284,7 +284,7 @@ function getCosObject() {
                 accessKeyId: secretId,
                 secretAccessKey: secretKey,
             },
-            endpoint: `https://cos.${region}.myqcloud.com`,
+            endpoint: endpoint,
             forcePathStyle: false,
         };
         oss = new S3(config);
@@ -293,7 +293,7 @@ function getCosObject() {
     ossSecretId = secretId;
     ossSecretKey = secretKey;
     ossBucket = bucket;
-    ossRegion = region;
+    ossEndpoint = endpoint;
 
     return oss;
 }
@@ -302,20 +302,30 @@ function getCosBackupKey() {
     return `${ossPathBackup}`;
 }
 
+
+async function getCosBackupFileHash() {
+    const result = await getCosObject().headObject({
+        Bucket: ossBucket,
+        Key: getCosBackupKey(),
+    });
+    return result.ETag;
+}
+
 async function dowloadCosBackupFile() {
     const result = await getCosObject().getObject({
         Bucket: ossBucket,
         Key: getCosBackupKey(),
     });
-    return result.Body.transformToString();
+    return { hash: result.ETag, data: await result.Body.transformToString() };
 }
 
 async function uploadCosBackupFile(backUp: string) {
-    getCosObject().putObject({
+    const result = await getCosObject().putObject({
         Bucket: ossBucket,
         Key: getCosBackupKey(),
         Body: backUp,
     });
+    return result.ETag;
 }
 
 
@@ -454,6 +464,7 @@ export const ossUtil =
     uploadS3File,
     deleteS3File,
 
+    getCosBackupFileHash,
     dowloadCosBackupFile,
     uploadCosBackupFile,
 

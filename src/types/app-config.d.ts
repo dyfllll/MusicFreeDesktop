@@ -98,8 +98,8 @@ interface _IAppConfig {
     /** bucket */
     "backup.oss.bucket": string;
 
-    /** region */
-    "backup.oss.region": string;
+    /** endpoint */
+    "backup.oss.endpoint": string;
 
     /** s3SecretId */
     "backup.oss.s3SecretId": string;
@@ -133,6 +133,12 @@ interface _IAppConfig {
     
     /** 优先使用备份数据 */
     "backup.oss.rank": boolean;
+
+    /** 自动更新歌单 */
+    "backup.oss.autoUpdate": boolean;
+
+    /** 歌单备份hash */
+    "backup.oss.autoUpdateHash": string;
 
     /** 本地音乐配置 */
     "localMusic.watchDir": string[];
