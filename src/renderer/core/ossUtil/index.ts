@@ -3,6 +3,7 @@ import { S3, GetObjectCommand, PutObjectCommand, DeleteObjectCommand } from '@aw
 import { Upload } from "@aws-sdk/lib-storage";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { localPluginName, RequestStateCode } from "@/common/constant";
+import pako from 'pako';
 
 let oss: S3 = null;
 let ossSecretId = "";
@@ -12,7 +13,7 @@ let ossEndpoint = "";
 
 
 const ossPathData = "data/320k";
-const ossPathBackup = "music/backup/MusicFree/PlaylistBackup.json";
+const ossPathBackup = "backup/MusicPlaylist.gz";
 
 export const ossPluginName = "oss";
 export const ossPluginHash = "oss";
@@ -316,14 +317,14 @@ async function dowloadCosBackupFile() {
         Bucket: ossBucket,
         Key: getCosBackupKey(),
     });
-    return { hash: result.ETag, data: await result.Body.transformToString() };
+    return { hash: result.ETag, data: pako.ungzip(await result.Body.transformToByteArray(), { to: 'string' }) };
 }
 
 async function uploadCosBackupFile(backUp: string) {
     const result = await getCosObject().putObject({
         Bucket: ossBucket,
         Key: getCosBackupKey(),
-        Body: backUp,
+        Body: pako.gzip(backUp),
     });
     return result.ETag;
 }

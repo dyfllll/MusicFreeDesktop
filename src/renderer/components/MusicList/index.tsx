@@ -759,7 +759,7 @@ function _MusicList(props: IMusicListProps) {
                                     AppConfig.getConfig("playMusic.clickMusicList");
                                 if (config === "replace") {
                                     trackPlayer.playMusicWithReplaceQueue(
-                                        table.getRowModel().rows.map((it) => it.original),
+                                        musicSheet.musicList, //table.getRowModel().rows.map((it) => it.original),
                                         row.original
                                     );
                                 } else {
