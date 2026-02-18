@@ -13,7 +13,7 @@ let ossEndpoint = "";
 
 
 const ossPathData = "data/320k";
-const ossPathBackup = "backup/MusicPlaylist.gz";
+const ossPathBackup = "backup/Music-Playlist.gz";
 
 export const ossPluginName = "oss";
 export const ossPluginHash = "oss";

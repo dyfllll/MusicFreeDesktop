@@ -145,10 +145,10 @@ export async function setStarredMusicSheets(sheets: IMedia.IMediaBase[]) {
  */
 export async function addMusicToSheet(
   musicItems: IMusic.IMusicItem | IMusic.IMusicItem[],
-  sheetId: string
+  sheetId: string, isFav: boolean = false
 ) {
   const start = Date.now();
-  await backend.addMusicToSheet(musicItems, sheetId);
+  await backend.addMusicToSheet(musicItems, sheetId, isFav);
   console.log("添加音乐", Date.now() - start, "ms");
 
   musicSheetsStore.setValue(backend.getAllSheets());
@@ -163,7 +163,7 @@ export async function addMusicToSheet(
 export async function addMusicToFavorite(
   musicItems: IMusic.IMusicItem | IMusic.IMusicItem[]
 ) {
-  return addMusicToSheet(musicItems, defaultSheet.id);
+  return addMusicToSheet(musicItems, defaultSheet.id , true);
 }
 
 /**

@@ -261,7 +261,7 @@ export async function setStarredMusicSheets(sheets: IMedia.IMediaBase[]) {
  */
 export async function addMusicToSheet(
     musicItems: IMusic.IMusicItem | IMusic.IMusicItem[],
-    sheetId: string
+    sheetId: string, isFav: boolean = false
 ) {
     const _musicItems = Array.isArray(musicItems) ? musicItems : [musicItems];
     try {
@@ -305,15 +305,27 @@ export async function addMusicToSheet(
                         obj.artwork =
                             validMusicItems[validMusicItems.length - 1]?.artwork ??
                             obj.artwork;
-                        obj.musicList = [
-                            ...(obj.musicList ?? []),
-                            ...validMusicItems.map((item, index) => ({
-                                platform: item.platform,
-                                id: item.id,
-                                [sortIndexSymbol]: index,
-                                [timeStampSymbol]: timeStamp,
-                            })),
-                        ];
+                        if (isFav) {
+                            obj.musicList = [
+                                ...validMusicItems.map((item, index) => ({
+                                    platform: item.platform,
+                                    id: item.id,
+                                    [sortIndexSymbol]: index,
+                                    [timeStampSymbol]: timeStamp,
+                                })),
+                                ...(obj.musicList ?? []),
+                            ];
+                        } else {
+                            obj.musicList = [
+                                ...(obj.musicList ?? []),
+                                ...validMusicItems.map((item, index) => ({
+                                    platform: item.platform,
+                                    id: item.id,
+                                    [sortIndexSymbol]: index,
+                                    [timeStampSymbol]: timeStamp,
+                                })),
+                            ];
+                        }   
                         targetSheet.artwork = obj.artwork;
                         targetSheet.musicList = obj.musicList;
                         musicSheets = [...musicSheets];
